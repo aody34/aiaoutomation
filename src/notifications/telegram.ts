@@ -267,7 +267,17 @@ export async function sendAIAgentIdeas(ideas: AIAgentIdea[]): Promise<void> {
         const scoreEmoji = idea.score >= 8 ? '🔥' : idea.score >= 7 ? '⭐' : '💫';
 
         // Send idea summary with type indicator
-        const typeEmoji = idea.ideaType === 'AI Agent' ? '🤖' : '💡';
+        const getTypeEmoji = (type: string) => {
+            switch (type) {
+                case 'AI Agent': return '🤖';
+                case 'Real Project': return '💡';
+                case 'Gaming': return '🎮';
+                case 'DeFi': return '💰';
+                case 'Privacy': return '🔒';
+                default: return '✨';
+            }
+        };
+        const typeEmoji = getTypeEmoji(idea.ideaType);
         const ideaMessage = `
 ${typeEmoji} *${idea.ideaType?.toUpperCase() || 'IDEA'} #${idea.id}: ${idea.name}*
 📂 Category: ${idea.category}
