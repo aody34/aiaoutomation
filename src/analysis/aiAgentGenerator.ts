@@ -158,6 +158,7 @@ function generateAIAgentIdea(id: number, agentType: { name: string; category: st
     const symbol = token.symbol || 'TOKEN';
     const prefixes = ['Smart', 'Alpha', 'Degen', 'Turbo', 'Pro', 'Ultra'];
     const name = `${prefixes[seed % prefixes.length]}${agentType.name.replace(/\s+/g, '')}`;
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
 
     const buildPrompt = `Build a production-ready ${agentType.name} for ${chain.toUpperCase()} traders.
 
@@ -180,11 +181,11 @@ TECH STACK:
 
 CORE FEATURES:
 1. ${agentType.focus} with AI analysis
-2. Real-time blockchain monitoring
+2. Real-time blockchain monitoring via webhooks
 3. Automated execution with safety checks
 4. Telegram alerts with trade details
 5. Dashboard with performance metrics
-6. Wallet connection
+6. Wallet connection (${chain === 'solana' ? 'Phantom' : 'MetaMask'})
 
 DATABASE (Supabase):
 - users: id, wallet_address, telegram_chat_id, settings
@@ -195,13 +196,26 @@ DATABASE (Supabase):
 PAGES: Landing, Dashboard, Settings, History
 
 API ROUTES:
-- POST /api/analyze - Analyze token
+- POST /api/analyze - Analyze token safety
 - POST /api/execute - Execute trade
-- POST /api/webhook - Blockchain events
+- POST /api/webhook - Handle blockchain events
 
 DESIGN: Dark theme #09090b, Primary #6366f1, smooth animations
 
-Build complete, deployable app. Start with landing page, then dashboard, then agent logic.`;
+DEPLOYMENT:
+1. Create project: npx create-next-app@latest ${slug} --typescript --tailwind
+2. Install deps: npm install @supabase/supabase-js ${chain === 'solana' ? '@solana/web3.js' : 'ethers'} openai
+3. Set up Supabase at supabase.com (free tier)
+4. Deploy to Vercel: vercel --prod (free)
+5. Add env vars in Vercel dashboard
+
+TESTING:
+1. Run locally: npm run dev
+2. Connect wallet on localhost:3000
+3. Test with small amounts first
+4. Monitor logs in Vercel dashboard
+
+Build complete app. Start with landing page, then dashboard, then agent logic.`;
 
     return {
         id, name, category: agentType.category, projectType: agentType.name,
@@ -223,6 +237,7 @@ function generateRealProjectIdea(id: number, problem: RealProblem, token: TokenD
     const projectType = projectOptions[seed % projectOptions.length];
     const prefixes = ['Pro', 'Smart', 'Chain', 'Crypto', 'Block', 'Ultra'];
     const name = `${prefixes[seed % prefixes.length]}${projectType.replace(/\s+/g, '')}`;
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
 
     const buildPrompt = `Build a production-ready ${projectType} for crypto users.
 
@@ -245,23 +260,38 @@ CORE FEATURES:
 1. Solve: ${problem.problem.slice(0, 40)}...
 2. Real-time blockchain data
 3. Clean dashboard with metrics
-4. Search and filter
+4. Search and filter functionality
 5. Export to CSV
-6. Notifications
+6. Email/Telegram notifications
 
 DATABASE (Supabase):
-- users: id, wallet_address, settings
-- tracked_items: id, user_id, address, metadata
-- analyses: id, item_id, score, result
+- users: id, wallet_address, email, settings
+- tracked_items: id, user_id, address, name, metadata
+- analyses: id, item_id, score, result, created_at
 
 PAGES: Landing, Dashboard, Settings, History
 
 API ROUTES:
-- POST /api/analyze, GET /api/data, POST /api/track
+- POST /api/analyze - Analyze item
+- GET /api/data - Fetch user data
+- POST /api/track - Add tracked item
 
-DESIGN: Dark theme #09090b, Primary #6366f1
+DESIGN: Dark theme #09090b, Primary #6366f1, clean cards
 
-Build complete app focusing on solving the real problem.`;
+DEPLOYMENT:
+1. Create project: npx create-next-app@latest ${slug} --typescript --tailwind
+2. Install: npm install @supabase/supabase-js axios
+3. Set up Supabase (free at supabase.com)
+4. Deploy to Vercel (free): vercel --prod
+5. Add environment variables
+
+TESTING:
+1. Run: npm run dev
+2. Test all features on localhost:3000
+3. Verify data displays correctly
+4. Check mobile responsiveness
+
+Build complete app focusing on solving the real user problem.`;
 
     return {
         id, name, category: capitalizeFirst(category), projectType,
@@ -280,6 +310,7 @@ function generateGamingIdea(id: number, gaming: { name: string; focus: string },
     const chain = token.chain || 'solana';
     const prefixes = ['Meta', 'Crypto', 'Chain', 'Web3', 'Degen', 'Ultra'];
     const name = `${prefixes[seed % prefixes.length]}${gaming.name.replace(/\s+/g, '')}`;
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
 
     const buildPrompt = `Build a production-ready ${gaming.name} on ${chain.toUpperCase()}.
 
@@ -292,34 +323,47 @@ A blockchain-based ${gaming.name.toLowerCase()} where players can ${gaming.focus
 
 TECH STACK:
 - Frontend: Next.js 14, TypeScript, TailwindCSS
-- Game Engine: Phaser.js or Three.js
+- Game Engine: Phaser.js (2D) or Three.js (3D)
 - Backend: Next.js API Routes, Supabase
-- Blockchain: ${chain === 'solana' ? '@solana/web3.js, Metaplex' : 'Ethers.js, OpenZeppelin'}
-- Wallet: ${chain === 'solana' ? 'Phantom' : 'MetaMask'}
+- Blockchain: ${chain === 'solana' ? '@solana/web3.js, Metaplex (NFTs)' : 'Ethers.js, OpenZeppelin'}
+- Wallet: ${chain === 'solana' ? 'Phantom, Solflare' : 'MetaMask, WalletConnect'}
 
 CORE FEATURES:
 1. ${gaming.focus}
-2. Wallet connection and authentication
-3. NFT minting/trading for in-game assets
-4. Leaderboard with rewards
+2. Wallet connection for authentication
+3. NFT minting for in-game assets
+4. Leaderboard with crypto rewards
 5. Token rewards system
-6. Multiplayer functionality
-7. Beautiful game UI
+6. Multiplayer rooms
+7. Beautiful game UI with animations
 
 DATABASE (Supabase):
-- users: id, wallet_address, username, stats
-- game_sessions: id, user_id, score, rewards
-- nfts: id, owner_id, metadata, rarity
+- users: id, wallet_address, username, level, xp
+- game_sessions: id, user_id, score, rewards, ended_at
+- nfts: id, owner_id, metadata, rarity, equipped
 - transactions: id, user_id, type, amount
 
 SMART CONTRACTS:
-- Game token (SPL/ERC20)
-- NFT collection for assets
-- Reward distribution
+- Game token (${chain === 'solana' ? 'SPL Token' : 'ERC-20'})
+- NFT collection (${chain === 'solana' ? 'Metaplex' : 'ERC-721'})
+- Reward distribution contract
 
-PAGES: Home, Play, Inventory, Leaderboard, Marketplace
+PAGES: Home, Play, Inventory, Leaderboard, Marketplace, Profile
 
-DESIGN: Vibrant gaming theme, animations, sound effects
+DESIGN: Vibrant gaming theme, neon colors, particle effects, sound
+
+DEPLOYMENT:
+1. Create: npx create-next-app@latest ${slug} --typescript --tailwind
+2. Install: npm install phaser @supabase/supabase-js ${chain === 'solana' ? '@solana/web3.js @metaplex-foundation/js' : 'ethers'}
+3. Set up Supabase for user data
+4. Deploy frontend to Vercel (free)
+5. Deploy contracts to ${chain === 'solana' ? 'Solana devnet first, then mainnet' : 'testnet first, then mainnet'}
+
+TESTING:
+1. Run: npm run dev
+2. Test game mechanics without blockchain first
+3. Test with ${chain === 'solana' ? 'devnet SOL' : 'testnet ETH'}
+4. Play full game flow before launch
 
 Build complete gaming platform with crypto integration.`;
 
@@ -340,6 +384,7 @@ function generateDeFiIdea(id: number, defi: { name: string; focus: string }, tok
     const chain = token.chain || 'solana';
     const prefixes = ['Yield', 'Swap', 'Liq', 'Stake', 'Degen', 'Ultra'];
     const name = `${prefixes[seed % prefixes.length]}${defi.name.replace(/\s+/g, '')}`;
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
 
     const buildPrompt = `Build a production-ready ${defi.name} on ${chain.toUpperCase()}.
 
@@ -352,9 +397,10 @@ A decentralized ${defi.name.toLowerCase()} that enables users to ${defi.focus.to
 
 TECH STACK:
 - Frontend: Next.js 14, TypeScript, TailwindCSS
-- Backend: Next.js API Routes, Supabase
-- Blockchain: ${chain === 'solana' ? '@solana/web3.js, Anchor' : 'Ethers.js, Hardhat'}
-- DEX: ${chain === 'solana' ? 'Jupiter, Raydium' : 'Uniswap, 0x'}
+- Backend: Next.js API Routes, Supabase (analytics)
+- Blockchain: ${chain === 'solana' ? '@solana/web3.js, Anchor framework' : 'Ethers.js, Hardhat'}
+- DEX Integration: ${chain === 'solana' ? 'Jupiter, Raydium' : 'Uniswap, 0x Protocol'}
+- Price Feeds: ${chain === 'solana' ? 'Pyth' : 'Chainlink'}
 
 CORE FEATURES:
 1. ${defi.focus}
@@ -365,28 +411,42 @@ CORE FEATURES:
 6. Gas optimization
 7. Slippage protection
 
-DATABASE (Supabase):
+DATABASE (Supabase - for analytics only):
 - users: id, wallet_address, total_volume
-- positions: id, user_id, pool, amount, rewards
-- transactions: id, user_id, type, token, amount, tx_hash
-- analytics: id, pool_id, tvl, volume, apy
+- analytics: id, pool_id, tvl, volume_24h, apy
+- transactions: id, user_wallet, type, amount, tx_hash
 
 SMART CONTRACTS:
-- Main protocol contract
-- Token contract (if needed)
+- Main protocol contract (${chain === 'solana' ? 'Anchor/Rust' : 'Solidity'})
+- Token contract if needed
 - Governance (optional)
 
-PAGES: Home, Dashboard, Pools, Swap, Analytics
+PAGES: Home, App/Dashboard, Pools, Swap, Analytics, Docs
 
 API ROUTES:
-- GET /api/pools - List pools
+- GET /api/pools - List all pools
 - GET /api/prices - Token prices
-- POST /api/quote - Swap quote
-- GET /api/positions - User positions
+- POST /api/quote - Get swap quote
+- GET /api/user/[wallet] - User positions
 
-DESIGN: Professional DeFi theme, charts, dark mode
+DESIGN: Professional DeFi theme, charts (Recharts), dark mode
 
-Build complete DeFi protocol with beautiful UI.`;
+DEPLOYMENT:
+1. Create: npx create-next-app@latest ${slug} --typescript --tailwind
+2. Install: npm install ${chain === 'solana' ? '@solana/web3.js @coral-xyz/anchor' : 'ethers hardhat'} recharts
+3. Write and test smart contracts
+4. Deploy contracts to ${chain === 'solana' ? 'devnet → mainnet' : 'testnet → mainnet'}
+5. Deploy frontend to Vercel
+6. Get security audit before mainnet
+
+TESTING:
+1. Test contracts with unit tests
+2. Deploy to testnet
+3. Test UI with testnet tokens
+4. Security audit (critical!)
+5. Bug bounty program recommended
+
+Build complete DeFi protocol with beautiful UI. Security is priority!`;
 
     return {
         id, name, category: 'DeFi', projectType: defi.name,
@@ -405,6 +465,7 @@ function generatePrivacyIdea(id: number, privacy: { name: string; focus: string 
     const chain = token.chain || 'solana';
     const prefixes = ['Shadow', 'Ghost', 'Stealth', 'Anon', 'Private', 'Secret'];
     const name = `${prefixes[seed % prefixes.length]}${privacy.name.replace(/\s+/g, '')}`;
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
 
     const buildPrompt = `Build a production-ready ${privacy.name} for ${chain.toUpperCase()}.
 
@@ -417,10 +478,10 @@ A privacy-focused ${privacy.name.toLowerCase()} that enables ${privacy.focus.toL
 
 TECH STACK:
 - Frontend: Next.js 14, TypeScript, TailwindCSS
-- Backend: Next.js API Routes, encrypted storage
+- Backend: Minimal/serverless (privacy-first)
 - Blockchain: ${chain === 'solana' ? '@solana/web3.js' : 'Ethers.js'}
-- Privacy: Zero-knowledge proofs, encryption libraries
-- Wallet: Non-custodial, encrypted keys
+- Privacy: Zero-knowledge proofs (snarkjs/circom), encryption (libsodium)
+- Storage: IPFS for decentralized storage
 
 CORE FEATURES:
 1. ${privacy.focus}
@@ -429,30 +490,50 @@ CORE FEATURES:
 4. Tor/VPN friendly
 5. Zero logs policy
 6. Decentralized architecture
-7. Open source verification
+7. Open source code
 
-PRIVACY MEASURES:
-- All transactions encrypted
-- No IP logging
-- Stealth addresses
-- Ring signatures (if applicable)
-- Time-delayed transactions
+PRIVACY ARCHITECTURE:
+- Client-side encryption (keys never leave device)
+- No server-side data storage
+- Stealth addresses for receiving
+- Ring signatures or ZK proofs for anonymity
+- Time-delayed transactions optional
 
-DATABASE (encrypted):
-- Minimal data storage
-- User-controlled keys
-- Encrypted metadata
+DATABASE:
+- Minimal: only encrypted user preferences (local storage preferred)
+- No transaction logs on server
+- User controls all data
 
-PAGES: Home, Dashboard, Privacy Tools, Settings
+PAGES: Home, App, Privacy Guide, Open Source, FAQ
 
 SECURITY:
-- Regular audits
+- All code open source
+- Regular security audits
 - Bug bounty program
-- Open source code
+- No backdoors
 
-DESIGN: Dark, minimal, privacy-focused UI
+DESIGN: Dark minimal theme, privacy-focused UI, trust indicators
 
-Build privacy-first application with strong encryption.`;
+DEPLOYMENT:
+1. Create: npx create-next-app@latest ${slug} --typescript --tailwind
+2. Install: npm install ${chain === 'solana' ? '@solana/web3.js' : 'ethers'} libsodium-wrappers
+3. Host on privacy-friendly platform (Vercel, IPFS, or self-hosted)
+4. Consider Tor hidden service (.onion)
+5. Open source on GitHub
+
+TESTING:
+1. Security audit essential
+2. Test encryption/decryption
+3. Verify no data leaks
+4. Test with privacy tools (Tor, VPN)
+5. Penetration testing recommended
+
+LEGAL:
+- Consult legal counsel for your jurisdiction
+- Terms of service and privacy policy
+- Transparency reports
+
+Build privacy-first application. Security and privacy are non-negotiable!`;
 
     return {
         id, name, category: 'Privacy', projectType: privacy.name,
@@ -462,7 +543,7 @@ Build privacy-first application with strong encryption.`;
         solution: `${privacy.name} with encryption`,
         targetUser: 'Privacy-conscious users',
         features: [privacy.focus, 'E2E encryption', 'No KYC', 'Zero logs', 'Decentralized'],
-        techStack: ['Next.js', 'ZK Proofs', 'Encryption', chain === 'solana' ? 'Solana' : 'Ethereum'],
+        techStack: ['Next.js', 'ZK Proofs', 'libsodium', chain === 'solana' ? 'Solana' : 'Ethereum'],
         buildPrompt, score: 0, trendingContext: 'Privacy trend',
     };
 }
