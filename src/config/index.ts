@@ -26,12 +26,23 @@ export const config = {
         dexscreener: 30,
         twitter: 10,      // Nitter is more sensitive
         axiom: 20,
+        helius: 50,       // Helius is more forgiving
     },
     // Retry configuration for failed requests
     retry: {
         maxRetries: 3,
         baseDelayMs: 1000,
         retryStatusCodes: [429, 503, 502, 504],
+    },
+    // Gemini AI API
+    gemini: {
+        apiKey: process.env.GEMINI_API_KEY || '',
+        model: 'gemini-1.5-flash',
+    },
+    // Helius API for Solana data
+    helius: {
+        apiKey: process.env.HELIUS_API_KEY || '',
+        rpcUrl: `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY || ''}`,
     },
 };
 

@@ -133,6 +133,8 @@ export interface BuildSpecification {
         backend: string;
         database: string;
         wallet: string;
+        dataFetching?: string;
+        realtime?: string;
     };
 
     coreFeatures: string[];
@@ -142,5 +144,19 @@ export interface BuildSpecification {
     smartContractRequirements: string[];
 
     roadmap: string[];
+
+    // Enhanced fields (10-year experience level)
+    analysisLogic?: {
+        smartMoneyFilters?: string[];
+        signalGeneration?: string;
+    };
+
+    performanceSpecs?: {
+        caching?: string;
+        realtime?: string;
+        rateLimit?: string;
+    };
+
+    marketingHook?: string;
 }
 

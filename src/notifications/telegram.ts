@@ -1,6 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { config } from '../config';
-import { ProjectIdea, DailyReport } from '../types';
+import { ProjectIdea, DailyReport, BuildSpecification } from '../types';
 import { MemeTrend } from '../services/memeTrends';
 import { AIAgentIdea } from '../analysis/aiAgentGenerator';
 
@@ -364,3 +364,149 @@ function splitMessage(text: string, maxLength: number): string[] {
 
     return parts;
 }
+
+/**
+ * Send Build Specifications to Telegram (new enhanced format)
+ */
+export async function sendBuildSpecifications(specs: BuildSpecification[]): Promise<void> {
+    if (!bot) {
+        bot = initTelegramBot();
+    }
+
+    const chatId = config.telegram.chatId;
+    if (!chatId) {
+        throw new Error('TELEGRAM_CHAT_ID is not set');
+    }
+
+    // Send header
+    const header = `
+🚀 *BUILD SPECIFICATIONS*
+📅 ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+
+━━━━━━━━━━━━━━━━━━━
+🔧 *${specs.length} Project Specs Generated*
+━━━━━━━━━━━━━━━━━━━
+`;
+
+    await bot.sendMessage(chatId, header, { parse_mode: 'Markdown' });
+    await sleep(300);
+
+    // Send each Build Spec
+    for (let i = 0; i < specs.length; i++) {
+        const spec = specs[i];
+        const scoreEmoji = spec.score >= 80 ? '🔥' : spec.score >= 60 ? '⭐' : '💫';
+
+        // Main spec message
+        const specMessage = `
+${scoreEmoji} *#${i + 1}: ${spec.projectName}*
+💎 Ticker: \`${spec.ticker}\`
+📊 Score: ${spec.score}/100
+
+💡 *Concept:*
+${spec.concept}
+
+⏰ *Why Now (Alpha):*
+${spec.whyNow}
+
+${spec.marketingHook ? `🎯 *Marketing Hook:*\n_"${spec.marketingHook}"_\n` : ''}
+━━━━━━━━━━━━━━━━━━━
+`;
+        await bot.sendMessage(chatId, specMessage, { parse_mode: 'Markdown' });
+        await sleep(200);
+
+        // Tech Stack message
+        const techMessage = `
+🛠 *TECH STACK for ${spec.ticker}*
+
+• *Frontend:* ${spec.techStack.frontend}
+• *Blockchain:* ${spec.techStack.blockchain}
+• *Backend:* ${spec.techStack.backend}
+• *Database:* ${spec.techStack.database}
+• *Wallet:* ${spec.techStack.wallet}
+${spec.techStack.dataFetching ? `• *Data Fetching:* ${spec.techStack.dataFetching}` : ''}
+${spec.techStack.realtime ? `• *Realtime:* ${spec.techStack.realtime}` : ''}
+
+⚙️ *Core Features:*
+${spec.coreFeatures.map(f => `• ${f}`).join('\n')}
+`;
+        await bot.sendMessage(chatId, techMessage, { parse_mode: 'Markdown' });
+        await sleep(200);
+
+        // Database Schema
+        if (Object.keys(spec.databaseSchema).length > 0) {
+            let schemaText = `📋 *DATABASE SCHEMA for ${spec.ticker}*\n\n`;
+            for (const [table, fields] of Object.entries(spec.databaseSchema)) {
+                schemaText += `*${table}:*\n\`${fields}\`\n\n`;
+            }
+            await bot.sendMessage(chatId, schemaText, { parse_mode: 'Markdown' });
+            await sleep(200);
+        }
+
+        // Smart Contract Requirements
+        if (spec.smartContractRequirements.length > 0) {
+            const contractText = `
+📜 *SMART CONTRACT REQUIREMENTS*
+${spec.smartContractRequirements.map(r => `• ${r}`).join('\n')}
+`;
+            await bot.sendMessage(chatId, contractText, { parse_mode: 'Markdown' });
+            await sleep(200);
+        }
+
+        // Analysis Logic (if available)
+        if (spec.analysisLogic) {
+            const analysisText = `
+🎯 *SMART MONEY ANALYSIS LOGIC*
+${spec.analysisLogic.smartMoneyFilters?.map(f => `• ${f}`).join('\n') || ''}
+${spec.analysisLogic.signalGeneration ? `\n📡 *Signal:* ${spec.analysisLogic.signalGeneration}` : ''}
+`;
+            await bot.sendMessage(chatId, analysisText, { parse_mode: 'Markdown' });
+            await sleep(200);
+        }
+
+        // Performance Specs (if available)
+        if (spec.performanceSpecs) {
+            const perfText = `
+⚡ *PERFORMANCE SPECS*
+${spec.performanceSpecs.caching ? `• *Caching:* ${spec.performanceSpecs.caching}` : ''}
+${spec.performanceSpecs.realtime ? `• *Realtime:* ${spec.performanceSpecs.realtime}` : ''}
+${spec.performanceSpecs.rateLimit ? `• *Rate Limit:* ${spec.performanceSpecs.rateLimit}` : ''}
+`;
+            await bot.sendMessage(chatId, perfText, { parse_mode: 'Markdown' });
+            await sleep(200);
+        }
+
+        // Roadmap (plain text to avoid markdown issues)
+        const roadmapText = `📍 ROADMAP for ${spec.ticker}
+
+${spec.roadmap.map((step, idx) => `${idx + 1}. ${step.replace('Step ' + (idx + 1) + ': ', '')}`).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━`;
+
+        // Split if too long
+        if (roadmapText.length > 4000) {
+            const parts = splitMessage(roadmapText, 4000);
+            for (const part of parts) {
+                await bot.sendMessage(chatId, part);
+                await sleep(200);
+            }
+        } else {
+            await bot.sendMessage(chatId, roadmapText);
+        }
+
+        await sleep(500);
+    }
+
+    // Footer
+    const footer = `
+✅ *${specs.length} Build Specifications Delivered!*
+
+💻 Copy and paste these specs to your AI coding assistant to start building!
+
+🤖 Generated by Crypto AI Automation
+⏰ ${new Date().toISOString()}
+`;
+
+    await bot.sendMessage(chatId, footer, { parse_mode: 'Markdown' });
+    console.log(`✅ Sent ${specs.length} Build Specifications to Telegram`);
+}
+
