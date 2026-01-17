@@ -54,3 +54,93 @@ export interface DailyReport {
     marketSnapshot: MarketSnapshot;
     generatedAt: Date;
 }
+
+// ===============================
+// NEW TYPES FOR ARCHITECTURE V2
+// ===============================
+
+/**
+ * Unified raw trend data from all providers
+ */
+export interface RawTrendData {
+    source: 'dexscreener' | 'twitter' | 'axiom';
+    timestamp: Date;
+    tokens: TokenMetrics[];
+    narratives: NarrativeSignal[];
+    rawEngagement: EngagementData;
+}
+
+/**
+ * Token metrics for scoring
+ */
+export interface TokenMetrics {
+    symbol: string;
+    name: string;
+    chain: string;
+    volumeChange1h: number;  // % change in 1 hour
+    volume24h: number;
+    liquidity: number;
+    marketCap: number;
+    priceChange24h: number;
+    pairAddress: string;
+    url: string;
+}
+
+/**
+ * Narrative signal from social/news
+ */
+export interface NarrativeSignal {
+    keyword: string;
+    frequency: number;
+    source: string;
+    sentiment: 'bullish' | 'bearish' | 'neutral';
+}
+
+/**
+ * Engagement data from social sources
+ */
+export interface EngagementData {
+    totalMentions: number;
+    sentiment: 'bullish' | 'bearish' | 'neutral';
+    topTickers: string[];
+    tweetSamples: string[];
+}
+
+/**
+ * Scored project with weighted algorithm
+ */
+export interface ScoredProject {
+    ticker: string;
+    score: number;           // 0-100 final weighted score
+    volumeGrowthScore: number;
+    narrativeVelocityScore: number;
+    liquidityHealthScore: number;
+}
+
+/**
+ * Full Build Specification for a project
+ */
+export interface BuildSpecification {
+    projectName: string;
+    ticker: string;
+    score: number;
+    concept: string;
+    whyNow: string;
+
+    techStack: {
+        frontend: string;
+        blockchain: string;
+        backend: string;
+        database: string;
+        wallet: string;
+    };
+
+    coreFeatures: string[];
+
+    databaseSchema: Record<string, string>;
+
+    smartContractRequirements: string[];
+
+    roadmap: string[];
+}
+

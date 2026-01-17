@@ -1,10 +1,8 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-
-/**
- * Axiom / AI Agent ecosystem monitoring
- * Tracks trending AI agent use cases, automation workflows, and agent narratives
- */
+import { BaseProvider } from './BaseProvider';
+import { RawTrendData, NarrativeSignal } from '../types';
+import { config } from '../config';
 
 // Known AI agent related tokens and projects
 const AI_AGENT_TOKENS = [
@@ -22,24 +20,34 @@ const AI_AGENT_TOKENS = [
 
 // AI agent narratives to track
 const AI_NARRATIVES = [
-    'autonomous trading bots',
-    'AI content generation',
-    'on-chain AI agents',
-    'AI governance',
-    'predictive analytics',
-    'AI-powered DEX',
-    'agent swarms',
-    'AI meme generation',
+    { keyword: 'autonomous trading bots', weight: 1.5 },
+    { keyword: 'AI content generation', weight: 1.2 },
+    { keyword: 'on-chain AI agents', weight: 2.0 },
+    { keyword: 'AI governance', weight: 1.0 },
+    { keyword: 'predictive analytics', weight: 1.3 },
+    { keyword: 'AI-powered DEX', weight: 1.5 },
+    { keyword: 'agent swarms', weight: 1.8 },
+    { keyword: 'AI meme generation', weight: 1.4 },
 ];
 
-/**
- * Get trending AI agent narratives
- */
-export async function getAIAgentTrends(): Promise<string[]> {
-    const trends: string[] = [];
+interface AxiomScrapedData {
+    headlines: string[];
+    narratives: Array<{ keyword: string; detected: boolean; weight: number }>;
+    aiTokens: string[];
+}
 
-    // Scrape crypto news for AI agent mentions
-    try {
+/**
+ * Axiom Provider - AI Agent ecosystem monitoring
+ */
+export class AxiomProvider extends BaseProvider {
+    constructor() {
+        super('Axiom', config.rateLimits.axiom);
+    }
+
+    protected async fetchData(): Promise<AxiomScrapedData> {
+        const headlines: string[] = [];
+
+        // Scrape crypto AI news
         const newsUrls = [
             'https://decrypt.co/artificial-intelligence',
             'https://cointelegraph.com/tags/artificial-intelligence',
@@ -47,6 +55,7 @@ export async function getAIAgentTrends(): Promise<string[]> {
 
         for (const url of newsUrls) {
             try {
+                await this.rateLimiter.acquire();
                 const response = await axios.get(url, {
                     timeout: 10000,
                     headers: {
@@ -66,54 +75,83 @@ export async function getAIAgentTrends(): Promise<string[]> {
                         text.includes('autonomous') ||
                         text.includes('bot')
                     ) {
-                        trends.push($(el).text().trim());
+                        headlines.push($(el).text().trim());
                     }
                 });
             } catch (err) {
                 continue;
             }
         }
-    } catch (error) {
-        console.error('Error fetching AI agent trends:', error);
+
+        // Check which narratives are currently hot
+        const narratives = AI_NARRATIVES.map(n => ({
+            keyword: n.keyword,
+            detected: headlines.some(h =>
+                h.toLowerCase().includes(n.keyword.toLowerCase().split(' ')[0])
+            ),
+            weight: n.weight,
+        }));
+
+        return {
+            headlines,
+            narratives,
+            aiTokens: AI_AGENT_TOKENS,
+        };
     }
 
-    // Add known trending narratives
-    const currentNarratives = await detectCurrentNarratives();
-    trends.push(...currentNarratives);
+    protected formatData(raw: AxiomScrapedData): RawTrendData {
+        // Build narrative signals with frequency based on headline matches and weight
+        const narratives: NarrativeSignal[] = raw.narratives.map(n => ({
+            keyword: n.keyword,
+            frequency: n.detected ? Math.round(10 * n.weight) : 1, // Weighted frequency
+            source: 'axiom',
+            sentiment: 'bullish' as const, // AI narratives are generally bullish
+        }));
 
-    return [...new Set(trends)].slice(0, 15);
+        // Add detected headlines as additional narrative signals
+        for (const headline of raw.headlines.slice(0, 10)) {
+            narratives.push({
+                keyword: headline,
+                frequency: 5,
+                source: 'axiom',
+                sentiment: 'bullish',
+            });
+        }
+
+        return {
+            source: 'axiom',
+            timestamp: new Date(),
+            tokens: [], // Axiom doesn't provide token metrics directly
+            narratives,
+            rawEngagement: {
+                totalMentions: raw.headlines.length + raw.narratives.filter(n => n.detected).length,
+                sentiment: 'bullish',
+                topTickers: raw.aiTokens.map(t => `$${t}`),
+                tweetSamples: raw.headlines.slice(0, 5),
+            },
+        };
+    }
 }
 
+// ====================================
+// LEGACY EXPORTS (for backward compat)
+// ====================================
+
+const provider = new AxiomProvider();
+
 /**
- * Detect current hot narratives based on social signals
+ * Get trending AI agent narratives
+ * @deprecated Use AxiomProvider.getData() instead
  */
-async function detectCurrentNarratives(): Promise<string[]> {
-    const narratives: string[] = [];
-
-    // Check for specific trending topics
-    const trendingTopics = [
-        { keyword: 'AI agent crypto', narrative: 'Autonomous AI trading agents' },
-        { keyword: 'Truth Terminal', narrative: 'AI chatbots influencing markets' },
-        { keyword: 'ai16z crypto', narrative: 'AI-powered DAO and DeFi' },
-        { keyword: 'Virtuals Protocol', narrative: 'AI virtual environments' },
-        { keyword: 'DeSci AI', narrative: 'Decentralized Science + AI' },
-        { keyword: 'agent swarm', narrative: 'Multi-agent coordination' },
-    ];
-
-    for (const topic of trendingTopics) {
-        // Simple check - in production would verify with social data
-        narratives.push(topic.narrative);
-    }
-
-    return narratives;
+export async function getAIAgentTrends(): Promise<string[]> {
+    const data = await provider.getData();
+    return data.narratives.map(n => n.keyword);
 }
 
 /**
  * Get trending AI agent tokens with their metrics
  */
-export async function getAIAgentTokens(): Promise<
-    { symbol: string; narrative: string }[]
-> {
+export async function getAIAgentTokens(): Promise<{ symbol: string; narrative: string }[]> {
     return AI_AGENT_TOKENS.map((symbol) => ({
         symbol,
         narrative: getTokenNarrative(symbol),
@@ -141,7 +179,7 @@ function getTokenNarrative(symbol: string): string {
 }
 
 /**
- * Get automation workflow trends (what agents are being built for)
+ * Get automation workflow trends
  */
 export async function getAutomationTrends(): Promise<string[]> {
     return [

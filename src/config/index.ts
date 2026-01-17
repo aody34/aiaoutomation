@@ -21,6 +21,18 @@ export const config = {
         minIdeas: 10, // Minimum ideas to generate
         maxIdeas: 12, // Maximum ideas per report
     },
+    // Rate limiting configuration (requests per minute)
+    rateLimits: {
+        dexscreener: 30,
+        twitter: 10,      // Nitter is more sensitive
+        axiom: 20,
+    },
+    // Retry configuration for failed requests
+    retry: {
+        maxRetries: 3,
+        baseDelayMs: 1000,
+        retryStatusCodes: [429, 503, 502, 504],
+    },
 };
 
 export function validateConfig(): boolean {

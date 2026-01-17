@@ -1,7 +1,33 @@
-import { TokenData, TrendingTopic, ProjectIdea, MarketSnapshot } from '../types';
-import { getTrendingTokens, getVolumeSpikes, getNewPairs } from '../services/dexscreener';
+import {
+    TokenData,
+    TrendingTopic,
+    ProjectIdea,
+    MarketSnapshot,
+    RawTrendData,
+    TokenMetrics,
+    NarrativeSignal,
+    BuildSpecification,
+} from '../types';
+import { DexscreenerProvider } from '../services/dexscreener';
+import { TwitterProvider } from '../services/twitter';
+import { AxiomProvider } from '../services/axiom';
+import { getTrendingTokens, getVolumeSpikes } from '../services/dexscreener';
 import { getTrendingTopics, getViralMemes, getTrendingHashtags } from '../services/twitter';
 import { getAIAgentTrends, getAutomationTrends } from '../services/axiom';
+import { ANALYST_SYSTEM_PROMPT, buildUserPrompt } from './llmPrompt';
+
+// Scoring weights
+const SCORING_WEIGHTS = {
+    VOLUME_GROWTH: 0.25,      // 25% - Volume spike in 1h
+    NARRATIVE_VELOCITY: 0.35,  // 35% - AI Agent/Axiom keyword frequency
+    LIQUIDITY_HEALTH: 0.40,    // 40% - MC/Liquidity ratio
+};
+
+// AI-related keywords for narrative velocity
+const AI_KEYWORDS = [
+    'ai agent', 'axiom', 'autonomous', 'on-chain ai',
+    'ai16z', 'virtual', 'ai bot', 'agent swarm',
+];
 
 // Name components for generating unique project names
 const NAME_PREFIXES = [
@@ -19,25 +45,175 @@ const MEME_THEMES = [
     'wojak', 'npc', 'gigabrain', 'degen', 'ape', 'diamond', 'rocket',
 ];
 
+// Initialize providers
+const dexscreenerProvider = new DexscreenerProvider();
+const twitterProvider = new TwitterProvider();
+const axiomProvider = new AxiomProvider();
+
 /**
- * Main trend analyzer - combines all data sources
+ * Calculate Volume Growth Score (0-100)
+ * +25% volume in 1h = 100 score
+ */
+function scoreVolumeGrowth(volumeChange1h: number): number {
+    if (volumeChange1h <= 0) return 0;
+    return Math.min(100, Math.round((volumeChange1h / 25) * 100));
+}
+
+/**
+ * Calculate Narrative Velocity Score (0-100)
+ * Based on AI/Axiom keyword frequency
+ */
+function scoreNarrativeVelocity(narratives: NarrativeSignal[]): number {
+    let totalAIFrequency = 0;
+
+    for (const narrative of narratives) {
+        const isAIRelated = AI_KEYWORDS.some(k =>
+            narrative.keyword.toLowerCase().includes(k)
+        );
+        if (isAIRelated) {
+            totalAIFrequency += narrative.frequency;
+        }
+    }
+
+    // 50 mentions = 100 score
+    return Math.min(100, Math.round((totalAIFrequency / 50) * 100));
+}
+
+/**
+ * Calculate Liquidity Health Score (0-100)
+ * MC/Liquidity ratio of 2-10x = healthy
+ */
+function scoreLiquidityHealth(marketCap: number, liquidity: number): number {
+    if (liquidity === 0) return 0;
+
+    const ratio = marketCap / liquidity;
+
+    if (ratio >= 2 && ratio <= 5) return 100;  // Optimal
+    if (ratio > 5 && ratio <= 10) return 75;   // Good
+    if (ratio > 10 && ratio <= 20) return 50;  // Acceptable
+    return 25;  // Risky (too low or too high)
+}
+
+/**
+ * Calculate combined weighted score
+ */
+function calculateWeightedScore(
+    volumeChange1h: number,
+    narratives: NarrativeSignal[],
+    marketCap: number,
+    liquidity: number
+): { total: number; volumeScore: number; narrativeScore: number; liquidityScore: number } {
+    const volumeScore = scoreVolumeGrowth(volumeChange1h);
+    const narrativeScore = scoreNarrativeVelocity(narratives);
+    const liquidityScore = scoreLiquidityHealth(marketCap, liquidity);
+
+    const total = Math.round(
+        volumeScore * SCORING_WEIGHTS.VOLUME_GROWTH +
+        narrativeScore * SCORING_WEIGHTS.NARRATIVE_VELOCITY +
+        liquidityScore * SCORING_WEIGHTS.LIQUIDITY_HEALTH
+    );
+
+    return { total, volumeScore, narrativeScore, liquidityScore };
+}
+
+/**
+ * Main trend analyzer - combines all data sources using new providers
  */
 export async function analyzeMarket(): Promise<MarketSnapshot> {
-    console.log('📊 Analyzing market data...');
+    console.log('📊 Analyzing market data with new providers...');
 
-    const [trendingTokens, hotTopics, aiTrends, memes] = await Promise.all([
-        getTrendingTokens(),
-        getTrendingTopics(),
-        getAIAgentTrends(),
-        getViralMemes(),
+    // Fetch data from all providers in parallel
+    const [dexData, twitterData, axiomData] = await Promise.all([
+        dexscreenerProvider.getData().catch(err => {
+            console.error('Dexscreener fetch failed:', err.message);
+            return null;
+        }),
+        twitterProvider.getData().catch(err => {
+            console.error('Twitter fetch failed:', err.message);
+            return null;
+        }),
+        axiomProvider.getData().catch(err => {
+            console.error('Axiom fetch failed:', err.message);
+            return null;
+        }),
     ]);
+
+    // Combine into market snapshot (legacy format for backward compat)
+    const trendingTokens: TokenData[] = dexData?.tokens.map(t => ({
+        name: t.name,
+        symbol: t.symbol,
+        chain: t.chain,
+        priceUsd: '0',
+        priceChange24h: t.priceChange24h,
+        volume24h: t.volume24h,
+        liquidity: t.liquidity,
+        pairAddress: t.pairAddress,
+        url: t.url,
+        marketCap: t.marketCap,
+    })) || [];
+
+    const hotTopics: TrendingTopic[] = twitterData?.narratives.map(n => ({
+        keyword: n.keyword,
+        source: 'twitter' as const,
+        mentions: n.frequency,
+        sentiment: n.sentiment,
+        relatedTokens: twitterData.rawEngagement.topTickers,
+    })) || [];
+
+    const aiAgentTrends: string[] = axiomData?.narratives.map(n => n.keyword) || [];
+    const viralMemes: string[] = twitterData?.rawEngagement.tweetSamples || [];
 
     return {
         timestamp: new Date(),
         trendingTokens,
         hotTopics,
-        aiAgentTrends: aiTrends,
-        viralMemes: memes,
+        aiAgentTrends,
+        viralMemes,
+    };
+}
+
+/**
+ * Analyze market with new providers and return raw data for LLM
+ */
+export async function analyzeMarketV2(): Promise<{
+    tokens: TokenMetrics[];
+    narratives: NarrativeSignal[];
+    trendingTickers: string[];
+    rawData: RawTrendData[];
+}> {
+    console.log('📊 Analyzing market data (V2)...');
+
+    const [dexData, twitterData, axiomData] = await Promise.all([
+        dexscreenerProvider.getData().catch(() => null),
+        twitterProvider.getData().catch(() => null),
+        axiomProvider.getData().catch(() => null),
+    ]);
+
+    const rawData: RawTrendData[] = [];
+    if (dexData) rawData.push(dexData);
+    if (twitterData) rawData.push(twitterData);
+    if (axiomData) rawData.push(axiomData);
+
+    // Combine tokens from all sources
+    const tokens = dexData?.tokens || [];
+
+    // Combine narratives from Twitter and Axiom
+    const narratives = [
+        ...(twitterData?.narratives || []),
+        ...(axiomData?.narratives || []),
+    ];
+
+    // Combine trending tickers
+    const trendingTickers = [
+        ...(dexData?.rawEngagement.topTickers || []),
+        ...(twitterData?.rawEngagement.topTickers || []),
+    ];
+
+    return {
+        tokens,
+        narratives,
+        trendingTickers: [...new Set(trendingTickers)],
+        rawData,
     };
 }
 
@@ -87,7 +263,7 @@ export async function generateIdeas(
         ideas.push(generateOriginalIdea(snapshot, ideaId++));
     }
 
-    // Score and sort ideas
+    // Score and sort ideas using new algorithm
     const scoredIdeas = ideas.map((idea) => ({
         ...idea,
         score: calculateOpportunityScore(idea, snapshot),
@@ -99,8 +275,140 @@ export async function generateIdeas(
 }
 
 /**
- * Create idea from a trending token
+ * Generate Build Specifications using the new analysis
  */
+export async function generateBuildSpecifications(count: number = 5): Promise<BuildSpecification[]> {
+    console.log('🔧 Generating Build Specifications...');
+
+    const marketData = await analyzeMarketV2();
+
+    // For now, generate mock build specs based on analyzed data
+    // In production, this would call an LLM with the ANALYST_SYSTEM_PROMPT
+    const buildSpecs: BuildSpecification[] = [];
+
+    // Score and rank tokens
+    const scoredTokens = marketData.tokens
+        .map(token => ({
+            token,
+            scores: calculateWeightedScore(
+                token.volumeChange1h,
+                marketData.narratives,
+                token.marketCap,
+                token.liquidity
+            ),
+        }))
+        .sort((a, b) => b.scores.total - a.scores.total)
+        .slice(0, count);
+
+    for (let i = 0; i < Math.min(count, scoredTokens.length); i++) {
+        const { token, scores } = scoredTokens[i];
+        const projectName = `${NAME_PREFIXES[i % NAME_PREFIXES.length]} ${token.symbol} ${NAME_SUFFIXES[i % NAME_SUFFIXES.length]}`;
+
+        buildSpecs.push({
+            projectName,
+            ticker: `$${token.symbol}X`,
+            score: scores.total,
+            concept: `A ${token.symbol}-inspired project leveraging current AI agent momentum with ${scores.total}% opportunity score.`,
+            whyNow: `${token.symbol} is trending with ${token.volume24h.toLocaleString()} 24h volume. AI narrative velocity: ${scores.narrativeScore}/100. Liquidity health: ${scores.liquidityScore}/100.`,
+            techStack: {
+                frontend: 'Next.js 14+, React 18, shadcn/ui, TailwindCSS',
+                blockchain: token.chain === 'solana'
+                    ? 'Solana (@solana/web3.js, @metaplex-foundation/js)'
+                    : 'EVM (ethers v6, wagmi, viem)',
+                backend: 'Node.js 20+, tRPC, WebSocket',
+                database: 'Supabase (PostgreSQL) with Row Level Security',
+                wallet: token.chain === 'solana'
+                    ? '@solana/wallet-adapter-react'
+                    : 'RainbowKit + wagmi',
+            },
+            coreFeatures: [
+                'Real-time token price tracking',
+                'Wallet connection and authentication',
+                'Social sharing and community features',
+            ],
+            databaseSchema: {
+                users: 'id (uuid), wallet_address (text unique), created_at (timestamptz)',
+                transactions: 'id (uuid), user_id (fk), token_amount (decimal), tx_hash (text), status (enum)',
+            },
+            smartContractRequirements: [
+                token.chain === 'solana'
+                    ? 'SPL Token deployment via Metaplex'
+                    : 'ERC-20 Token deployment',
+                'Basic staking mechanism',
+            ],
+            roadmap: [
+                'Step 1: npx create-next-app@latest my-project --typescript --tailwind --app',
+                'Step 2: npx shadcn-ui@latest init',
+                `Step 3: npm install ${token.chain === 'solana' ? '@solana/web3.js @solana/wallet-adapter-react' : 'wagmi viem @rainbow-me/rainbowkit'}`,
+                'Step 4: Set up Supabase project and create tables',
+                'Step 5: Implement wallet connection and basic UI',
+                'Step 6: Deploy token contract on devnet/testnet',
+                'Step 7: Test full flow',
+                'Step 8: Deploy to Vercel + mainnet',
+            ],
+        });
+    }
+
+    // If not enough tokens, generate AI-focused specs
+    while (buildSpecs.length < count) {
+        const idx = buildSpecs.length;
+        const aiNarrative = marketData.narratives[idx % marketData.narratives.length]?.keyword || 'AI Agent';
+        const prefix = NAME_PREFIXES[idx % NAME_PREFIXES.length];
+
+        buildSpecs.push({
+            projectName: `${prefix} ${aiNarrative.split(' ')[0]} Agent`,
+            ticker: `$${prefix.substring(0, 2)}${aiNarrative.substring(0, 2)}`.toUpperCase(),
+            score: 70 - idx * 5,
+            concept: `An autonomous ${aiNarrative} project for the Web3 ecosystem.`,
+            whyNow: `"${aiNarrative}" is trending with high narrative velocity. AI agents are the #1 narrative.`,
+            techStack: {
+                frontend: 'Next.js 14+, React 18, shadcn/ui, TailwindCSS',
+                blockchain: 'Solana (@solana/web3.js, @metaplex-foundation/js)',
+                backend: 'Node.js 20+, Express, WebSocket',
+                database: 'Supabase (PostgreSQL)',
+                wallet: '@solana/wallet-adapter-react',
+            },
+            coreFeatures: [
+                'AI agent interaction interface',
+                'Token-gated access',
+                'Community governance',
+            ],
+            databaseSchema: {
+                users: 'id (uuid), wallet_address (text unique), created_at (timestamptz)',
+                agents: 'id (uuid), name (text), config (jsonb), owner_id (fk)',
+            },
+            smartContractRequirements: [
+                'SPL Token deployment',
+                'Agent registry program',
+            ],
+            roadmap: [
+                'Step 1: npx create-next-app@latest --typescript --tailwind --app',
+                'Step 2: npx shadcn-ui@latest init',
+                'Step 3: npm install @solana/web3.js @solana/wallet-adapter-react',
+                'Step 4: Set up Supabase',
+                'Step 5: Build MVP UI',
+                'Step 6: Deploy to Vercel',
+            ],
+        });
+    }
+
+    return buildSpecs;
+}
+
+/**
+ * Get the LLM prompt for external use
+ */
+export function getLLMPrompt(): { system: string; buildUserPrompt: typeof buildUserPrompt } {
+    return {
+        system: ANALYST_SYSTEM_PROMPT,
+        buildUserPrompt,
+    };
+}
+
+// ====================================
+// LEGACY HELPER FUNCTIONS
+// ====================================
+
 function createIdeaFromToken(token: TokenData, id: number): ProjectIdea {
     const theme = detectTheme(token.name, token.symbol);
     const ticker = generateTicker(theme);
@@ -120,9 +428,6 @@ function createIdeaFromToken(token: TokenData, id: number): ProjectIdea {
     };
 }
 
-/**
- * Create idea from a Twitter trend
- */
 function createIdeaFromTrend(topic: TrendingTopic, id: number): ProjectIdea {
     const ticker = generateTicker(topic.keyword);
 
@@ -143,9 +448,6 @@ function createIdeaFromTrend(topic: TrendingTopic, id: number): ProjectIdea {
     };
 }
 
-/**
- * Create idea from AI agent trend
- */
 function createIdeaFromAITrend(trend: string, id: number): ProjectIdea {
     const words = trend.split(' ');
     const ticker = `${words[0]?.substring(0, 2).toUpperCase() || 'AI'}${words[1]?.substring(0, 2).toUpperCase() || 'X'}`;
@@ -165,9 +467,6 @@ function createIdeaFromAITrend(trend: string, id: number): ProjectIdea {
     };
 }
 
-/**
- * Create idea from viral meme
- */
 function createIdeaFromMeme(meme: string, id: number): ProjectIdea {
     const cleanMeme = meme.substring(0, 50);
     const ticker = generateTickerFromMeme(cleanMeme);
@@ -187,9 +486,6 @@ function createIdeaFromMeme(meme: string, id: number): ProjectIdea {
     };
 }
 
-/**
- * Generate an original idea from combined analysis
- */
 function generateOriginalIdea(snapshot: MarketSnapshot, id: number): ProjectIdea {
     const themes = MEME_THEMES;
     const theme = themes[Math.floor(Math.random() * themes.length)];
@@ -219,13 +515,7 @@ function generateOriginalIdea(snapshot: MarketSnapshot, id: number): ProjectIdea
     };
 }
 
-/**
- * Calculate opportunity score (1-10)
- */
-function calculateOpportunityScore(
-    idea: ProjectIdea,
-    snapshot: MarketSnapshot
-): number {
+function calculateOpportunityScore(idea: ProjectIdea, snapshot: MarketSnapshot): number {
     let score = 5; // Base score
 
     // Boost for trending source
