@@ -237,7 +237,8 @@ _${trend.memeIdea}_
 }
 
 /**
- * Send AI Agent ideas with build prompts to Telegram
+ * Send AI Agent ideas with 7-section format to Telegram
+ * Enhanced: Senior Architect + Junior Developer Mentor style
  */
 export async function sendAIAgentIdeas(ideas: AIAgentIdea[]): Promise<void> {
     if (!bot) {
@@ -251,22 +252,23 @@ export async function sendAIAgentIdeas(ideas: AIAgentIdea[]): Promise<void> {
 
     // Send header
     const header = `
-🤖 *AI AGENT IDEAS FOR TRADERS*
+🤖 *CRYPTO PROJECT IDEAS*
 📅 ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
 
 ━━━━━━━━━━━━━━━━━━━
-💡 *${ideas.length} AI Agent Solutions*
+🏗️ *${ideas.length} Production-Ready Ideas*
+_Senior Architect + Junior Mentor Format_
 ━━━━━━━━━━━━━━━━━━━
 `;
 
     await bot.sendMessage(chatId, header, { parse_mode: 'Markdown' });
     await sleep(300);
 
-    // Send each idea
+    // Send each idea with 7-section format
     for (const idea of ideas) {
         const scoreEmoji = idea.score >= 8 ? '🔥' : idea.score >= 7 ? '⭐' : '💫';
 
-        // Send idea summary with type indicator
+        // Get type emoji
         const getTypeEmoji = (type: string) => {
             switch (type) {
                 case 'AI Agent': return '🤖';
@@ -274,44 +276,112 @@ export async function sendAIAgentIdeas(ideas: AIAgentIdea[]): Promise<void> {
                 case 'Gaming': return '🎮';
                 case 'DeFi': return '💰';
                 case 'Privacy': return '🔒';
+                case 'Launchpad': return '🚀';
                 default: return '✨';
             }
         };
         const typeEmoji = getTypeEmoji(idea.ideaType);
-        const ideaMessage = `
-${typeEmoji} *${idea.ideaType?.toUpperCase() || 'IDEA'} #${idea.id}: ${idea.name}*
-📂 Category: ${idea.category}
-🔧 Type: ${idea.projectType || 'Project'}
-📊 Score: ${idea.score}/10
-${idea.problemSource ? `🔍 ${idea.problemSource}` : ''}
-${idea.trendingContext ? `📈 ${idea.trendingContext}` : ''}
 
-❌ *Real Problem:*
+        // SECTION 1: Header + Problem
+        const section1 = `
+${typeEmoji} *PROJECT #${idea.id}: ${idea.name}*
+📂 ${idea.category} | 🔧 ${idea.projectType}
+${scoreEmoji} Score: ${idea.score}/10
+
+━━ 📌 WHAT PROBLEM IT SOLVES ━━
+
 "${idea.problem}"
 
-✅ *Solution:*
-${idea.solution}
-
-👤 *Target User:*
-${idea.targetUser}
-
-⚙️ *Key Features:*
-${idea.features.map(f => `• ${f}`).join('\n')}
-
-🛠 *Tech Stack:*
-${idea.techStack.join(' | ')}
-
-━━━━━━━━━━━━━━━━━━━
+${idea.problemSource ? `_Source: ${idea.problemSource}_` : ''}
 `;
-        await bot.sendMessage(chatId, ideaMessage, { parse_mode: 'Markdown' });
-        await sleep(300);
+        await bot.sendMessage(chatId, section1, { parse_mode: 'Markdown' });
+        await sleep(200);
 
-        // Send build prompt as separate message (plain text to avoid markdown issues)
-        const promptMessage = `📋 BUILD PROMPT FOR: ${idea.name}
+        // SECTION 2: Simple Explanation (for beginners)
+        if (idea.simpleExplanation) {
+            const section2 = `
+🧠 *HOW IT WORKS (Simple)*
 
-${idea.buildPrompt}`;
+${idea.simpleExplanation}
+`;
+            await bot.sendMessage(chatId, section2, { parse_mode: 'Markdown' });
+            await sleep(200);
+        }
 
-        // Split long prompts if needed
+        // SECTION 3: Architecture Diagram (plain text for monospace)
+        if (idea.systemArchitecture?.diagram) {
+            const section3 = `🏗️ SYSTEM ARCHITECTURE
+
+${idea.systemArchitecture.diagram}`;
+            await bot.sendMessage(chatId, section3);
+            await sleep(200);
+        }
+
+        // SECTION 4: Step-by-Step Build Plan
+        if (idea.stepByStepPlan && idea.stepByStepPlan.length > 0) {
+            const section4 = `📚 STEP-BY-STEP BUILD PLAN
+
+${idea.stepByStepPlan.map((step, i) => `${i + 1}. ${step}`).join('\n')}`;
+
+            if (section4.length > 4000) {
+                const parts = splitMessage(section4, 4000);
+                for (const part of parts) {
+                    await bot.sendMessage(chatId, part);
+                    await sleep(200);
+                }
+            } else {
+                await bot.sendMessage(chatId, section4);
+            }
+            await sleep(200);
+        }
+
+        // SECTION 5: Tech Stack
+        const techStackText = idea.techStack && typeof idea.techStack === 'object'
+            ? `• Frontend: ${idea.techStack.frontend}
+• Backend: ${idea.techStack.backend}
+• Blockchain: ${idea.techStack.blockchain}
+• Database: ${idea.techStack.database}${idea.techStack.additional ? `\n• Additional: ${idea.techStack.additional}` : ''}`
+            : Array.isArray(idea.techStack)
+                ? (idea.techStack as unknown as string[]).join(' | ')
+                : 'Next.js, TypeScript, Supabase';
+
+        const section5 = `
+🛠️ *TECH STACK*
+
+${techStackText}
+`;
+        await bot.sendMessage(chatId, section5, { parse_mode: 'Markdown' });
+        await sleep(200);
+
+        // SECTION 6: Security Considerations
+        if (idea.securityConsiderations && idea.securityConsiderations.length > 0) {
+            const section6 = `
+🔒 *SECURITY CONSIDERATIONS*
+
+${idea.securityConsiderations.map(s => `• ${s}`).join('\n')}
+`;
+            await bot.sendMessage(chatId, section6, { parse_mode: 'Markdown' });
+            await sleep(200);
+        }
+
+        // SECTION 7: Future Improvements
+        if (idea.futureImprovements && idea.futureImprovements.length > 0) {
+            const section7 = `
+🚀 *FUTURE ROADMAP*
+
+${idea.futureImprovements.map(f => `• ${f}`).join('\n')}
+`;
+            await bot.sendMessage(chatId, section7, { parse_mode: 'Markdown' });
+            await sleep(200);
+        }
+
+        // FULL BUILD PROMPT (plain text)
+        const promptMessage = `📋 FULL BUILD PROMPT FOR: ${idea.name}
+
+${idea.buildPrompt}
+
+━━━━━━━━━━━━━━━━━━━`;
+
         if (promptMessage.length > 4000) {
             const parts = splitMessage(promptMessage, 4000);
             for (const part of parts) {
@@ -328,15 +398,25 @@ ${idea.buildPrompt}`;
     // Send footer
     const footer = `
 ━━━━━━━━━━━━━━━━━━━
-✅ *${ideas.length} AI Agent Ideas Delivered*
+✅ *${ideas.length} Project Ideas Delivered!*
 
-💻 Copy any BUILD PROMPT above and paste it into your AI coding assistant to start building!
+📋 *How to Use:*
+1. Copy any BUILD PROMPT above
+2. Paste into Claude, GPT-4, or Cursor
+3. Start building your crypto project!
+
+🎯 Each idea is production-ready with:
+• Full architecture diagram
+• Step-by-step build plan
+• Security best practices
+• Future roadmap
 
 🤖 Generated by Crypto AI Automation
+_Senior Architect + Junior Mentor Edition_
 `;
 
     await bot.sendMessage(chatId, footer, { parse_mode: 'Markdown' });
-    console.log(`✅ Sent ${ideas.length} AI agent ideas with build prompts to Telegram`);
+    console.log(`✅ Sent ${ideas.length} project ideas with 7-section format to Telegram`);
 }
 
 /**
